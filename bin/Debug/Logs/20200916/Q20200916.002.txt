@@ -1,0 +1,22 @@
+[13:33:16:337] Created By AutoOptionsArbitrage
+[13:33:16:340] PushClient[20160316]
+[13:33:16:341] QuoteCom 元件啟動 [20200423]
+[13:33:19:479] P:11823498
+[13:33:19:495] P:*11823498
+[13:33:19:495] P:Send<118>Subscribe:UN00291
+[13:33:19:495] Q:MT_CONNECT_READY iquotetest.kgi.com.tw:443
+[13:33:19:932] P:HBThread Start
+[13:33:19:932] P:**11823498
+[13:33:20:135] P:FeedPkgThreadHB Start
+[13:33:20:135] P:MT_SUBSCRIBE Msg = UN00291
+[13:33:26:370] P:Send:1502
+[13:33:26:432] QuoteCom OnRcvData 2: 1503
+[13:33:26:432] QuoteCom OnRcvData 3: 1503,0
+[13:33:26:432] P:Send<118>Subscribe:NoticeWebQ
+[13:33:26:432] P:Send<118>Subscribe:TW.INFO
+[13:33:26:432] QuoteCom Login:[F131039608] LOGIN_READY
+[13:33:26:432] 可註冊數[1503]:25
+[13:33:26:432] QuoteCom OnRcvData 4: 1503
+[13:33:26:479] P:MT_SUBSCRIBE Msg = NoticeWebQ
+[13:33:26:479] 
+[13:33:26:526] P:MT_SUBSCRIBE Msg = TW.INFO

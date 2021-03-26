@@ -1,0 +1,474 @@
+﻿// Author: Darren K.J. Chen
+// Copyright © 2020 Darren ( Kuan-Ju ) Chen | All Rights Reserved
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Intelligence;
+using Package;
+
+namespace AutoOptionsArbitrage
+{
+    class Program
+    {
+        static QuoteAPI quoteAPI = new QuoteAPI();
+        static void Main(string[] argv)
+        {
+            quoteAPI.QuoteLogin();
+            Thread.Sleep(888);
+            quoteAPI.uniSub("TXO13000V0");
+            quoteAPI.lastPriceQuote("TXO13000V0");
+        }
+        class QuoteAPI
+        {
+            public UTF8Encoding encoding = new System.Text.UTF8Encoding();
+            Dictionary<string, int> RecoverMap = new Dictionary<string, int>();
+
+            static string srcId = "API";
+            static string tkn = "b6eb";
+            static string host = "iquotetest.kgi.com.tw";
+            static ushort port = 443;
+
+            Intelligence.QuoteCom quoteCom = new Intelligence.QuoteCom(host, port, srcId, tkn);
+
+            /* Debug WARNING */
+            //static bool chk_40020 = false;
+            //static bool chk_40080 = false;
+
+            public void QuoteLogin()
+            {
+                quoteCom.OnGetStatus += OnQuoteGetStatus;
+                quoteCom.OnRcvMessage += OnQuoteRcvMessage;
+
+                //Console.WriteLine("\nQuoteCom [ Version : " + quoteCom.version + " ]\n Device Ip: " + quoteCom.MyIP);
+
+                quoteCom.Connect(host, port);
+                Thread.Sleep(2222);
+
+                string id = "F131039608";
+                string pwd = "0000";
+                char center = ' ';
+
+                quoteCom.SourceId = srcId;
+                quoteCom.Login(id, pwd, center);
+
+                Console.WriteLine("\nQuoteCom [ Version : " + quoteCom.version + " ]\nDevice IP: " + quoteCom.MyIP);
+            }
+
+            public void uniSub(string quoteCode)
+            {
+                short istatus = quoteCom.SubQuote(quoteCode);
+                if (istatus < 0)
+                    Console.WriteLine(quoteCom.GetSubQuoteMsg(istatus));
+
+                //return "NULL-Type: string";
+            }
+
+            public void lastPriceQuote(string quoteCode)
+            {
+                short istatus = quoteCom.RetriveLastPrice(quoteCode);
+                if (istatus < 0)
+                    Console.WriteLine(quoteCom.GetSubQuoteMsg(istatus));
+
+                //return "NULL-Type: string";
+            }
+
+            public void closePriceQuote()
+            {
+                short istatus = quoteCom.RetriveClosePrice();
+                if (istatus < 0)
+                    Console.WriteLine(quoteCom.GetSubQuoteMsg(istatus));
+            }
+
+            private void OnQuoteGetStatus(object sender, COM_STATUS staus, byte[] msg)
+            {
+                QuoteCom com = (QuoteCom)sender;
+                string smsg = "";
+                switch (staus)
+                {
+                    case COM_STATUS.LOGIN_READY:
+                        Console.WriteLine(String.Format("LOGIN_READY"));
+                        Console.WriteLine(smsg);
+                        break;
+                    case COM_STATUS.LOGIN_FAIL:
+                        Console.WriteLine(String.Format("LOGIN FAIL:[{0}]", encoding.GetString(msg)));
+                        break;
+                    case COM_STATUS.LOGIN_UNKNOW:
+                        Console.WriteLine(String.Format("LOGIN UNKNOW:[{0}]", encoding.GetString(msg)));
+                        break;
+                    case COM_STATUS.CONNECT_READY:
+                        smsg = "QuoteCom: [" + encoding.GetString(msg) + "] MyIP=" + quoteCom.MyIP;
+                        break;
+                    case COM_STATUS.CONNECT_FAIL:
+                        smsg = encoding.GetString(msg);
+                        Console.WriteLine("CONNECT_FAIL:" + smsg);
+                        break;
+                    case COM_STATUS.DISCONNECTED:
+                        smsg = encoding.GetString(msg);
+                        Console.WriteLine("DISCONNECTED:" + smsg);
+                        break;
+                    case COM_STATUS.SUBSCRIBE:
+                        smsg = encoding.GetString(msg, 0, msg.Length - 1);
+                        Console.WriteLine(String.Format("SUBSCRIBE:[{0}]", smsg));
+                        break;
+                    case COM_STATUS.UNSUBSCRIBE:
+                        smsg = encoding.GetString(msg, 0, msg.Length - 1);
+                        Console.WriteLine(String.Format("UNSUBSCRIBE:[{0}]", smsg));
+                        break;
+                    case COM_STATUS.ACK_REQUESTID:
+                        long RequestId = BitConverter.ToInt64(msg, 0);
+                        byte status = msg[8];
+                        Console.WriteLine("Request Id BACK: " + RequestId + " Status=" + status);
+                        break;
+                    case COM_STATUS.RECOVER_DATA:
+                        smsg = encoding.GetString(msg, 1, msg.Length - 1);
+                        if (!RecoverMap.ContainsKey(smsg))
+                            RecoverMap.Add(smsg, 0);
+
+                        if (msg[0] == 0)
+                        {
+                            RecoverMap[smsg] = 0;
+                            Console.WriteLine(String.Format("開始回補 Topic:[{0}]", smsg));
+                        }
+
+                        if (msg[0] == 1)
+                        {
+                            Console.WriteLine(String.Format("結束回補 Topic:[{0} 筆數:{1}]", smsg, RecoverMap[smsg]));
+                        }
+                        break;
+                }
+                com.Processed();
+            }
+
+            private void OnQuoteRcvMessage(object sender, PackageBase package)
+            {
+                Console.WriteLine("TEST: IN HEAD OF OnQuoteRcvMessage");
+
+                if (package.TOPIC != null)
+                    if (RecoverMap.ContainsKey(package.TOPIC))
+                        RecoverMap[package.TOPIC]++;
+
+
+                StringBuilder sb;
+                switch (package.DT)
+                {
+                    case (ushort)DT.LOGIN:
+                        P001503 _p001503 = (P001503)package;
+                        if (_p001503.Code == 0)
+                            Console.WriteLine("可註冊檔數：" + _p001503.Qnum);
+                        break;
+                    #region 公告 2014.12.12 ADD
+                    case (ushort)DT.NOTICE_RPT:
+                        P001701 p1701 = (P001701)package;
+                        Console.WriteLine(p1701.ToLog());
+                        break;    //公告(被動查詢) 
+                    case (ushort)DT.NOTICE:   //公告(主動)
+                        P001702 p1702 = (P001702)package;
+                        Console.WriteLine(p1702.ToLog());
+                        break;
+                    #endregion
+
+                    //case (ushort)DT.QUOTE_I020:
+                    //case (ushort)DT.QUOTE_I022:  //2014.4.2. ADD 20022 盤前揭示
+
+                    //    PI20020 i20020 = (PI20020)package;
+
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("DT:[" + i20020.DT + "]");
+                    //    sb.Append("資料時間:").Append(String.Format("{0:00:00:00\\.00}", i20020.MatchTime));
+                    //    sb.Append("    Tick序號:").Append(i20020.InfoSeq).Append(Environment.NewLine);
+                    //    sb.Append("最後封包:").Append(i20020.LastItem).Append(Environment.NewLine);
+                    //    sb.Append("期貨/選擇權:").Append(i20020.Market).Append("  [").Append(i20020.Symbol).Append("]").Append(Environment.NewLine);
+                    //    //sb.Append("價格正負號:").Append(i20020.MATCH_SIGN).Append(Environment.NewLine);
+                    //    sb.Append("成交 [價:").Append(i20020.Price).Append("   量:").Append(i20020.MatchQuantity).Append("]").Append(Environment.NewLine);
+                    //    sb.Append("累計成交  [量:").Append(i20020.MatchTotalQty).Append("  買筆數:")
+                    //        .Append(i20020.MatchBuyCnt).Append("  賣筆數:")
+                    //        .Append(i20020.MatchSellCnt).Append("]").Append(Environment.NewLine);
+                    //    sb.Append("=============================");
+                    //    if (i20020.DT == 20020) Console.WriteLine(sb.ToString());
+                    //    else Console.WriteLine(i20020.ToLog());//Console.WriteLine(sb.ToString()); 
+
+                    //    break;
+                    //case (ushort)DT.QUOTE_I020_RECOVER:   //I20 行情回補
+                    //    PI20020 i21020 = (PI20020)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("===I020 資料回補 =====").Append(Environment.NewLine);
+                    //    sb.Append("資料時間:").Append(String.Format("{0:00:00:00\\.00}", i21020.MatchTime));
+                    //    sb.Append("    Tick序號:").Append(i21020.InfoSeq).Append(Environment.NewLine);
+                    //    sb.Append("最後封包:").Append(i21020.LastItem).Append(Environment.NewLine);
+                    //    sb.Append("期貨/選擇權:").Append(i21020.Market).Append("  [").Append(i21020.Symbol).Append("]").Append(Environment.NewLine);
+                    //    sb.Append("成交 [價:").Append(i21020.Price).Append("   量:").Append(i21020.MatchQuantity).Append("]").Append(Environment.NewLine);
+                    //    sb.Append("累計成交  [量:").Append(i21020.MatchTotalQty).Append("  買筆數:")
+                    //        .Append(i21020.MatchBuyCnt).Append("  賣筆數:")
+                    //        .Append(i21020.MatchSellCnt).Append("]").Append(Environment.NewLine);
+                    //    Console.WriteLine(sb.ToString());
+
+                    //    break;
+                    //case (ushort)DT.QUOTE_I060:   //2015.9.8 Lynn Add: 現貨標的 (人民幣 RTF$)
+                    //    PI20060 i20060 = (PI20060)package;
+                    //    sb = new StringBuilder();
+                    //    sb.Append("******DataType:").Append(i20060.DT).Append("********").Append(Environment.NewLine)
+                    //        .Append("商品代碼").Append(i20060.Symbol).Append("資料時間:")
+                    //        .Append(String.Format("{0:00:00:00\\.00}", i20060.MatchTime))
+                    //        .Append("成交價:").Append(i20060.MatchPrice)
+                    //        .Append("買價:").Append(i20060.BidPrice)
+                    //        .Append("賣價:").Append(i20060.AskPrice)
+                    //        .Append("定盤價:").Append(i20060.FixPrice)
+                    //        .Append("參考價:").Append(i20060.RefPrice)
+                    //        .Append(Environment.NewLine);
+                    //    Console.WriteLine(sb.ToString());
+                    //    break;
+                    //case (ushort)DT.QUOTE_I021:
+                    //    PI20021 i20021 = (PI20021)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("******DataType:").Append(i20021.DT).Append("********");
+                    //    sb.Append("資料時間:").Append(String.Format("{0:00:00:00\\.00}", i20021.MatchTime));
+                    //    sb.Append("當日最高成交價格:").Append(i20021.DayHighPrice).Append("當日最低成交價格:").Append(i20021.DayLowPrice).Append(Environment.NewLine);
+                    //    Console.WriteLine(sb.ToString());
+                    //    break;
+                    //case (ushort)DT.QUOTE_I023:
+                    //    PI20023 i20023 = (PI20023)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("**********DataType:").Append(i20023.DT).Append("**********");
+                    //    Console.WriteLine(sb.ToString());
+                    //    break;
+                    //case (ushort)DT.QUOTE_I030:
+                    //    PI20030 i20030 = (PI20030)package;
+                    //    //Console.WriteLine(i20030.ToLog());
+                    //    //2018.6.28 Lynn TestConsole.WriteLine(i20030.ToLog());
+                    //    break;
+                    //case (ushort)DT.QUOTE_BASE_P08:   //商品檔 :  RetriveQuoteList() 
+                    //    /*PI20008 pi20008 = (PI20008)package;
+                    //    if (pi20008.Market == 'F') break; 
+                    //    sb = new StringBuilder();
+                    //    sb.Append("商品:").Append(pi20008.Symbol).Append(" 價格小數位:").Append(pi20008.PriceDecimal).Append(" 履約價格小數位:").Append(pi20008.StrikePriceDecimal);
+                    //    Console.WriteLine(sb.ToString());
+
+                    //sb = new StringBuilder(Environment.NewLine);
+                    //sb.Append("期貨/選擇權:").Append(pi20008.Market).Append(Environment.NewLine);
+                    //sb.Append("商品代號:").Append(pi20008.Symbol).Append(Environment.NewLine);
+                    //sb.Append("商品IDX:").Append(pi20008.SymbolIdx).Append(Environment.NewLine);
+                    //sb.Append("第一漲停價:").Append(pi20008._RISE_LIMIT_PRICE1).Append(Environment.NewLine);
+                    //sb.Append("參考價:").Append(pi20008._REFERENCE_PRICE).Append(Environment.NewLine);
+                    //sb.Append("第一漲停價:").Append(pi20008._RISE_LIMIT_PRICE1).Append(Environment.NewLine);
+                    //sb.Append("第二漲停價:").Append(pi20008._RISE_LIMIT_PRICE2).Append(Environment.NewLine);
+                    //sb.Append("第二跌停價:").Append(pi20008._FALL_LIMIT_PRICE2).Append(Environment.NewLine);
+                    //sb.Append("第三漲停價:").Append(pi20008._RISE_LIMIT_PRICE3).Append(Environment.NewLine);
+                    //sb.Append("第三跌停價:").Append(pi20008._FALL_LIMIT_PRICE3).Append(Environment.NewLine);
+                    //sb.Append("契約種類:").Append(pi20008._PROD_KIND).Append(Environment.NewLine);
+                    //sb.Append("價格欄位小數位數:").Append(pi20008.PriceDecimal).Append(Environment.NewLine);
+                    //sb.Append("商品名稱:").Append(pi20008._PROD_NAME).Append(Environment.NewLine);
+                    //sb.Append("下市日期:").Append(pi20008.END_DATE).Append(Environment.NewLine);
+                    //sb.Append("=================================");
+                    //Console.WriteLine(sb.ToString());
+                    //*/
+                    //    break;
+                    //case (ushort)DT.QUOTE_CLOSE_I070:  //收盤:  RetriveClosePrice() 
+                    //    Console.WriteLine("TEST: IN HEAD OF 20070");
+
+                    //    PI20070 pb = (PI20070)package;
+                    //    Console.WriteLine("TEST: IN LINE FOUR OF 20070");
+
+                    //    sb = new StringBuilder();
+                    //    sb.Append("期貨/選擇權:").Append(pb.MESSAGE_KIND).Append(Environment.NewLine);
+                    //    sb.Append("商品代號:").Append(pb.PROD_ID).Append(Environment.NewLine);
+                    //    sb.Append("該期最高價:").Append(pb.TERM_HIGH_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("該期最低價:").Append(pb.TERM_LOW_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("該日最高價:").Append(pb.DAY_HIGH_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("該日最低價:").Append(pb.DAY_LOW_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("開盤價:").Append(pb.OPEN_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("最後買價:").Append(pb.BUY_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("最後賣價:").Append(pb.SELL_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("收盤價:").Append(pb.CLOSE_PRICE).Append(Environment.NewLine);
+                    //    sb.Append("委託買進總筆數:").Append(pb.BO_COUNT_TAL).Append(Environment.NewLine);
+                    //    sb.Append("委託買進總口數:").Append(pb.BO_QNTY_TAL).Append(Environment.NewLine);
+                    //    sb.Append("委託賣出總筆數:").Append(pb.SO_COUNT_TAL).Append(Environment.NewLine);
+                    //    sb.Append("委託賣出總口數:").Append(pb.SO_QNTY_TAL).Append(Environment.NewLine);
+                    //    sb.Append("總成交筆數:").Append(pb.TOTAL_COUNT).Append(Environment.NewLine);
+                    //    sb.Append("總成交量:").Append(pb.TOTAL_QNTY).Append(Environment.NewLine);
+                    //    sb.Append("合併委託買進總筆數:").Append(pb.COMBINE_BO_COUNT_TAL).Append(Environment.NewLine);
+                    //    sb.Append("合併委託買進總口數:").Append(pb.COMBINE_BO_QNTY_TAL).Append(Environment.NewLine);
+                    //    sb.Append("合併委託賣出總筆數:").Append(pb.COMBINE_SO_COUNT_TAL).Append(Environment.NewLine);
+                    //    sb.Append("合併委託賣出總口數:").Append(pb.COMBINE_SO_QNTY_TAL).Append(Environment.NewLine);
+                    //    sb.Append("合併總成交量:").Append(pb.COMBINE_TOTAL_QNTY).Append(Environment.NewLine);
+                    //    sb.Append("價格欄位小數點:").Append(pb.DECIMAL_LOCATOR).Append(Environment.NewLine);
+                    //    sb.Append("=================");
+                    //    Console.WriteLine(sb.ToString());
+                    //    Console.WriteLine("TEST: IN END OF 20070");
+                    //    break;
+                    case (ushort)DT.QUOTE_I080:
+                    case (ushort)DT.QUOTE_I082: //case (ushort)DT.QUOTE_I082:   //2014.4.2 ADD 盤前揭示
+                        PI20080 i20080 = (PI20080)package;
+                        sb = new StringBuilder(Environment.NewLine);
+                        sb.Append("DT:[" + i20080.DT + "]");
+                        sb.Append("商品代號:").Append(i20080.Symbol).Append(Environment.NewLine);
+                        for (int i = 0; i < 5; i++)
+                            sb.Append(String.Format("五檔[{0}] 買[價:{1:N} 量:{2:N}]    賣[價:{3:N} 量:{4:N}]", i + 1, i20080.BUY_DEPTH[i].PRICE, i20080.BUY_DEPTH[i].QUANTITY, i20080.SELL_DEPTH[i].PRICE, i20080.SELL_DEPTH[i].QUANTITY)).Append(Environment.NewLine);
+                        sb.AppendLine("衍生委託第一檔買進價格:" + i20080.FIRST_DERIVED_BUY_PRICE);
+                        sb.AppendLine("衍生委託第一檔買進數量:" + i20080.FIRST_DERIVED_BUY_QTY);
+                        sb.AppendLine("衍生委託第一檔賣出價格:" + i20080.FIRST_DERIVED_SELL_PRICE);
+                        sb.AppendLine("衍生委託第一檔賣出數量" + i20080.FIRST_DERIVED_SELL_QTY);
+                        sb.AppendLine("資料時間" + i20080.DATA_TIME);
+                        sb.AppendLine("小數位位:" + i20080.PriceDecimal);
+                        sb.Append("==============================");
+                        //Console.WriteLine(sb.ToString());
+                        if (i20080.DT == 20080) Console.WriteLine(sb.ToString());
+                        else Console.WriteLine(i20080.ToLog()); //Console.WriteLine(sb.ToString()); 
+                        break;
+                    //case (ushort)DT.QUOTE_I080_RECOVER:  //I080回補
+                    //    PI20080 i21080 = (PI20080)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("==I080 回補資料 ===");
+                    //    sb.Append("商品代號:").Append(i21080.Symbol).Append(Environment.NewLine);
+                    //    for (int i = 0; i < 5; i++)
+                    //        sb.Append(String.Format("五檔[{0}] 買[價:{1:N} 量:{2:N}]    賣[價:{3:N} 量:{4:N}]", i + 1, i21080.BUY_DEPTH[i].PRICE, i21080.BUY_DEPTH[i].QUANTITY, i21080.SELL_DEPTH[i].PRICE, i21080.SELL_DEPTH[i].QUANTITY)).Append(Environment.NewLine);
+                    //    sb.AppendLine("衍生委託第一檔買進價格:" + i21080.FIRST_DERIVED_BUY_PRICE);
+                    //    sb.AppendLine("衍生委託第一檔買進數量:" + i21080.FIRST_DERIVED_BUY_QTY);
+                    //    sb.AppendLine("衍生委託第一檔賣出價格:" + i21080.FIRST_DERIVED_SELL_PRICE);
+                    //    sb.AppendLine("衍生委託第一檔賣出數量" + i21080.FIRST_DERIVED_SELL_QTY);
+                    //    sb.AppendLine("資料時間" + i21080.DATA_TIME);
+                    //    Console.WriteLine(sb.ToString());
+
+                    //    break;
+                    //case (ushort)DT.QUOTE_LAST_PRICE:   // 最後價格: RetriveLastPrice() 
+                    //    PI20026 pi20026 = (PI20026)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("商品代號:").Append(pi20026.Symbol).Append(" 最後價格:").Append(pi20026.MatchPrice).Append(Environment.NewLine);
+                    //    sb.Append("當日最高成交價格:").Append(pi20026.DayHighPrice).Append(" 當日最低成交價格:").Append(pi20026.DayLowPrice);
+                    //    sb.Append("開盤價:").Append(pi20026.FirstMatchPrice).Append(" 開盤量:").Append(pi20026.FirstMatchQty).Append(Environment.NewLine);
+                    //    sb.Append("參考價:").Append(pi20026.ReferencePrice).Append("累計成交量:").Append(pi20026.MatchTotalQty)
+                    //        .Append("盤別:").Append(pi20026.Session)
+                    //        .Append(" 交易暫停否:").Append(pi20026.Break_Mark).Append(Environment.NewLine);
+                    //    //2016.5  20026 封包 新增4欄位(衍生第一檔)
+                    //    sb.Append("衍生委託第一檔買進價格:").Append(pi20026.FirstDerivedBuyPrice).Append(Environment.NewLine)
+                    //       .Append("衍生委託第一檔買進數量:").Append(pi20026.FirstDerivedBuyQty).Append(Environment.NewLine)
+                    //       .Append("衍生委託第一檔賣出價格:").Append(pi20026.FirstDerivedSellPrice).Append(Environment.NewLine)
+                    //       .Append("衍生委託第一檔賣出數量:").Append(pi20026.FirstDerivedSellQty).Append(Environment.NewLine);
+
+                    //    for (int i = 0; i < 5; i++)
+                    //        sb.Append(String.Format("五檔[{0}] 買[價:{1:N} 量:{2:N}]    賣[價:{3:N} 量:{4:N}]", i + 1, pi20026.BUY_DEPTH[i].PRICE, pi20026.BUY_DEPTH[i].QUANTITY, pi20026.SELL_DEPTH[i].PRICE, pi20026.SELL_DEPTH[i].QUANTITY)).Append(Environment.NewLine);
+                    //    sb.Append("==========================");
+                    //    Console.WriteLine(sb.ToString());
+                    //    break;
+                    //case (ushort)DT.QUOTE_INFO:
+                    //    PI20140 pi20140 = (PI20140)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("F/O :").Append(pi20140.Market).Append(" kind:").Append(pi20140.Kind).Append(" Reason:").Append(pi20140.Reason);
+                    //    sb.Append(" Status:").Append(pi20140.Status).Append(" Count:").Append(pi20140.Count);
+                    //    for (int i = 0; i < pi20140.Count; i++)
+                    //        sb.Append(pi20140.Symbols[i]).Append(",");
+                    //    Console.WriteLine(sb.ToString());
+                    //    break;
+                    //case (ushort)DT.QUOTE_SESSION: //2017.4.10 Lynn Add: 盤別 FOR 盤後新制
+                    //    PI05005 pi5005 = (PI05005)package;
+                    //    sb = new StringBuilder(Environment.NewLine);
+                    //    sb.Append("F/O :").Append(pi5005.Market).Append(" Symbol:").Append(pi5005.Symbol).Append(" FallLimitPrice:").Append(pi5005.FallLimitPrice);
+                    //    sb.Append(" RiseLimitPrice:").Append(pi5005.RiseLimitPrice).Append(" RefPrice:").Append(pi5005.RefPrice)
+                    //        .Append(" Session:").Append(pi5005.Session).Append(" Status:").Append(pi5005.Status);
+                    //    Console.WriteLine(sb.ToString());
+                    //    break;
+                    //case (ushort)DT.QUOTE_FOREIGN_MATCH:
+                    //    if (chk_40020)
+                    //    {
+                    //        PI40020 pi40020 = (PI40020)package;
+                    //        sb = new StringBuilder(Environment.NewLine);
+                    //        sb.Append("[40020]交易所:").Append(pi40020.ExchangeNm);
+                    //        sb.Append(" 商品代號:").Append(pi40020.Symbol).Append(" 類別:").Append(pi40020.ComType);
+                    //        sb.Append(" 盤別:").Append(pi40020.Session).Append(Environment.NewLine);
+                    //        sb.Append(" 成交時間:").Append(pi40020.TradeTime).Append(" 價格:").Append(pi40020.Price).Append(" 口數:").Append(pi40020.Quantity).Append(Environment.NewLine);
+                    //        sb.Append(" 總量:").Append(pi40020.TotalQty);
+                    //        Console.WriteLine(sb.ToString());
+                    //    }
+                    //    break;
+                    //case (ushort)DT.QUOTE_FOREIGN_TOTALQTY:
+                    //    if (chk_40020)
+                    //    {
+                    //        PI40023 pi40023 = (PI40023)package;
+                    //        sb = new StringBuilder(Environment.NewLine);
+                    //        sb.Append("[40020]交易所:").Append(pi40023.ExchangeNm);
+                    //        sb.Append(" 商品代號:").Append(pi40023.Symbol).Append(" 類別:").Append(pi40023.ComType);
+                    //        sb.Append(" 盤別:").Append(pi40023.Session).Append(Environment.NewLine);
+                    //        sb.Append(" 總量:").Append(pi40023.TotalQty);
+                    //        Console.WriteLine(sb.ToString());
+                    //    }
+                    //    break;
+                        //case (ushort)DT.QUOTE_FOREIGN_CLOSEINFO:
+                        //    PI40021 pi40021 = (PI40021)package;
+                        //    sb = new StringBuilder(Environment.NewLine);
+                        //    sb.Append("[40021]交易所:").Append(pi40021.ExchangeNm);
+                        //    sb.Append(" 商品代號:").Append(pi40021.Symbol).Append(" 類別:").Append(pi40021.ComType);
+                        //    sb.Append(" 盤別:").Append(pi40021.Session).Append(Environment.NewLine);
+                        //    sb.Append(" 收盤價:").Append(pi40021.ClosePrice).Append(" 收盤量:").Append(pi40021.CloseQty).Append(Environment.NewLine);
+                        //    Console.WriteLine(sb.ToString());
+                        //    Console.WriteLine(sb.ToString());
+                        //    break;
+                        //case (ushort)DT.QUOTE_FOREIGN_SETTLEMENTPRICE:
+                        //    PI40022 pi40022 = (PI40022)package;
+                        //    sb = new StringBuilder(Environment.NewLine);
+                        //    sb.Append("[40022]交易所:").Append(pi40022.ExchangeNm);
+                        //    sb.Append(" 商品代號:").Append(pi40022.Symbol).Append(" 類別:").Append(pi40022.ComType);
+                        //    sb.Append(" 盤別:").Append(pi40022.Session);
+                        //    sb.Append(" 結算價:").Append(pi40022.SettlementPrice).Append(Environment.NewLine);
+                        //    Console.WriteLine(sb.ToString());
+                        //    Console.WriteLine(sb.ToString());
+                        //    break;
+                        //case (ushort)DT.QUOTE_FOREIGN_DEPTH:
+                        //    PI40080 pi40080 = (PI40080)package;
+                        //    if (chk_40080)
+                        //    {
+                        //        sb = new StringBuilder(Environment.NewLine);
+                        //        sb.Append("[40080]交易所:").Append(pi40080.ExchangeNm).Append(" 來源:").Append(pi40080.Source);
+                        //        sb.Append("商品代號:").Append(pi40080.Symbol).Append(" 類別:").Append(pi40080.ComType);
+                        //        sb.Append(" 盤別:").Append(pi40080.Session).Append(" 買賣別:").Append(pi40080.Side).Append(Environment.NewLine);
+                        //        sb.Append(" 頂端價:").Append(pi40080.TopMark).Append(" 價格:").Append(pi40080.Price);
+                        //        sb.Append(" 口數:").Append(pi40080.Quantity).Append("檔位:").Append(pi40080.Position).Append(Environment.NewLine);
+                        //        Console.WriteLine(sb.ToString());
+                        //    }
+                        //    break;
+                        //case (ushort)DT.QUOTE_FOREIGN_LASTPRICE:
+                        //    PI40026 pi40026 = (PI40026)package;
+                        //    sb = new StringBuilder(Environment.NewLine);
+                        //    sb.Append("[40026]交易所:").Append(pi40026.ExchangeNm).Append(" 類別:").Append(pi40026.ComType).Append(" 盤別:").Append(pi40026.Session).Append(" 盤別狀態:").Append(pi40026.Status);
+                        //    sb.Append("商品代號:").Append(pi40026.Symbol).Append(Environment.NewLine);
+                        //    sb.Append(" 參考價:").Append(pi40026.ReferencePrice).Append(" 昨日成交量:").Append(pi40026.YesterdayQty).Append(Environment.NewLine);
+                        //    sb.Append(" 當日最高價:").Append(pi40026.DayHighPrice).Append("當日最低價:").Append(pi40026.DayLowPrice).Append(Environment.NewLine);
+                        //    sb.Append(" 開盤價:").Append(pi40026.OpenPrice).Append(" 開盤量:").Append(pi40026.OpenQty).Append(Environment.NewLine);
+                        //    sb.Append(" 最新成交價:").Append(pi40026.LastPrice).Append(" 最新成交量:").Append(pi40026.LastQty).Append(" 當日成交量:").Append(pi40026.DayTradeQty).Append(Environment.NewLine);
+                        //    sb.Append("買方檔數:" + pi40026.BuyDepthCount).Append(Environment.NewLine);
+                        //    for (int i = 0; i < pi40026.BuyDepthCount; i++)
+                        //        sb.Append("價格:").Append(pi40026.BUY_DEPTH[i].PRICE).Append("數量:").Append(pi40026.BUY_DEPTH[i].QUANTITY).Append(Environment.NewLine);
+                        //    sb.Append("賣方檔數:" + pi40026.SellDepthCount).Append(Environment.NewLine);
+                        //    for (int i = 0; i < pi40026.SellDepthCount; i++)
+                        //        sb.Append("價格:").Append(pi40026.SELL_DEPTH[i].PRICE).Append("數量:").Append(pi40026.SELL_DEPTH[i].QUANTITY).Append(Environment.NewLine);
+                        //    sb.Append("盤別狀態:").Append(pi40026.Status).Append(Environment.NewLine);
+                        //    sb.Append("==========================");
+                        //    Console.WriteLine(sb.ToString());
+                        //    break;
+                        ////2015.12 Add: 現貨指數
+                        //case (ushort)DT.QUOTE_FOREIGN_INDEX:
+                        //    PI40060 pi40060 = (PI40060)package;
+                        //    sb = new StringBuilder(Environment.NewLine);
+                        //    sb.Append("[40060]交易所:").Append(pi40060.ExchangeNm);
+                        //    sb.Append(" 商品代號:").Append(pi40060.Symbol).Append(" 類別:").Append(pi40060.ComType);
+                        //    sb.Append(" 盤別:").Append(pi40060.Session).Append(Environment.NewLine);
+                        //    sb.Append(" 成交時間:").Append(pi40060.TradeTime).Append(" 價格:").Append(pi40060.LastPrice).Append(Environment.NewLine);
+                        //    Console.WriteLine(sb.ToString());
+                        //    break;
+                        ////2018.7.25 : Lynn (I90)  台灣期貨交易所編制指數資訊揭示訊息
+                        //case (ushort)DT.QUOTE_I090:
+                        //    PI20090 pi20090 = (PI20090)package;
+                        //    sb = new StringBuilder(Environment.NewLine);
+                        //    sb.Append("[20090]").Append(pi20090.Market).Append("IndexID=").Append(pi20090.IndexID);
+                        //    sb.Append(" IndexTime=").Append(pi20090.IndexTime).Append(" IndexPrice=").Append(pi20090.IndexPrice);
+
+                        //    Console.WriteLine(sb.ToString());
+                        //    break;
+                }
+            }
+        }
+    }
+}

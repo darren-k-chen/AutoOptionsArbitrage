@@ -1,0 +1,10 @@
+[12:41:14:205] Created By AutoOptionsArbitrage
+[12:41:14:214] PushClient[20160316]
+[12:41:14:216] QuoteCom ¤¸¥ó±Ò°Ê [20200423]
+[12:41:20:506] P:7591132
+[12:41:20:516] P:*7591132
+[12:41:20:523] P:Send<75>Subscribe:UN00296
+[12:41:20:523] Q:MT_CONNECT_READY iquotetest.kgi.com.tw:443
+[12:41:20:526] P:HBThread Start
+[12:41:20:527] P:FeedPkgThreadHB Start
+[12:41:20:529] P:**7591132

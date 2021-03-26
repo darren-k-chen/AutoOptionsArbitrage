@@ -1,0 +1,8 @@
+[17:59:17:960] Created By AutoOptionsArbitrage
+[17:59:17:963] PushClient[20160316]
+[17:59:17:965] QuoteCom 元件啟動 [20200423]
+[17:59:38:392] Disconnect Enter:Server 斷線 outputStream rcvLen= 0socket.conneted=True
+[17:59:38:393] P:Disconnect : Server 斷線 outputStream rcvLen= 0socket.conneted=True [HB00:00:00:000;00:00:00:000]
+[17:59:38:397] Q:MT_DISCONNECTED: Server 斷線 outputStream rcvLen= 0socket.conneted=True
+[17:59:38:400] P:Disconnect Exit :Server 斷線 outputStream rcvLen= 0socket.conneted=True
+[17:59:38:402] P:PushClient FeedPkgThread Triger_Queue1 Exception

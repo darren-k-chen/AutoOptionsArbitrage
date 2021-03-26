@@ -1,0 +1,16 @@
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\bin\Debug\AutoOptionsArbitrage.exe.config
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\bin\Debug\AutoOptionsArbitrage.exe
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\bin\Debug\AutoOptionsArbitrage.pdb
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.csprojAssemblyReference.cache
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.csproj.CoreCompileInputs.cache
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.exe
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.pdb
+C:\Users\Darren\source\repos\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.csproj.CopyComplete
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\bin\Debug\AutoOptionsArbitrage.exe.config
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\bin\Debug\AutoOptionsArbitrage.exe
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\bin\Debug\AutoOptionsArbitrage.pdb
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.csprojAssemblyReference.cache
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.csproj.CoreCompileInputs.cache
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.csproj.CopyComplete
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.exe
+D:\kjchen\Projects\AutoOptionsArbitrage\AutoOptionsArbitrage\obj\Debug\AutoOptionsArbitrage.pdb
